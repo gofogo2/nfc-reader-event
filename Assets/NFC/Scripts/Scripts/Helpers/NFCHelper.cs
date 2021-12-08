@@ -5,51 +5,16 @@ using UnityEngine;
 
 public class NFCHelper : MonoBehaviour
 {
-    private static NFCHelper instance = null;
-
-    void Awake()
-    {
-        if (null == instance)
-        {
-            instance = this;
-            DontDestroyOnLoad(this.gameObject);
-        }
-        else
-        {
-            Destroy(this.gameObject);
-        }
-    }
-
-    public static NFCHelper Instance
-    {
-        get
-        {
-            if (null == instance)
-            {
-                return null;
-            }
-            return instance;
-        }
-    }
-
+    public string tagID;
     public bool tagFound = false;
     private AndroidJavaObject mActivity;
     private AndroidJavaObject mIntent;
     private string sAction;
 
-    public delegate void TagReceiveEventHandler(string code);
-    public event TagReceiveEventHandler TagReceiveEventHandlerEvent;
+    //public static delegate void TagReceiveEventHandler(string code);
+    //public static event TagReceiveEventHandler TagReceiveEventHandlerEvent;
 
-    public void Run()
-    {
-        if (IsInvoking("NfcRun"))
-        {
-            CancelInvoke("NfcRun");
-        }
-        InvokeRepeating("NfcRun", 0.0f, 0.01f);
-    }
-
-    void NfcRun()
+    void Update()
     {
         if (Application.platform == RuntimePlatform.Android)
         {
@@ -67,23 +32,33 @@ public class NFCHelper : MonoBehaviour
             sAction = mIntent.Call<String>("getAction");
             if (sAction == "android.nfc.action.NDEF_DISCOVERED")
             {
+                Debug.Log("Tag of type NDEF");
+
+                var text = Test();
+                Debug.Log("TAG TEXT : " + text);
                 tagFound = true;
-                string text = GetPayload();
-                TagReceiveEventHandlerEvent(text);
-                Invoke("DeselectNFC", 0.5f);
-            }
-            else if (sAction == "android.nfc.action.TECH_DISCOVERED")
-            {
-                tagFound = true;
-                string text = GetPayload();
-                TagReceiveEventHandlerEvent(text);
-                Invoke("DeselectNFC", 0.5f);
+                Invoke("DeselectNFC", 2);
             }
             else if (sAction == "android.nfc.action.TAG_DISCOVERED")
             {
                 Debug.Log("This type of tag is not supported !");
             }
+            else
+            {
+                Debug.Log("No tag...  ( " + sAction + " )");
+                return;
+            }
+
         }
+    }
+
+    string Test()
+    {
+        AndroidJavaObject[] mNdefMessage = mIntent.Call<AndroidJavaObject[]>("getParcelableArrayExtra", "android.nfc.extra.NDEF_MESSAGES");
+        AndroidJavaObject[] mNdefRecord = mNdefMessage[0].Call<AndroidJavaObject[]>("getRecords");
+        byte[] payLoad = mNdefRecord[0].Call<byte[]>("getPayload");
+        string text = System.Text.Encoding.UTF8.GetString(payLoad);
+        return text;
     }
 
     void DeselectNFC()
@@ -91,14 +66,5 @@ public class NFCHelper : MonoBehaviour
         mIntent.Call("removeExtra", "android.nfc.extra.TAG");
         mIntent.Call("removeExtra", "android.nfc.extra.NDEF_MESSAGES");
         tagFound = false;
-    }
-
-    string GetPayload()
-    {
-        AndroidJavaObject[] mNdefMessage = mIntent.Call<AndroidJavaObject[]>("getParcelableArrayExtra", "android.nfc.extra.NDEF_MESSAGES");
-        AndroidJavaObject[] mNdefRecord = mNdefMessage[0].Call<AndroidJavaObject[]>("getRecords");
-        byte[] payLoad = mNdefRecord[0].Call<byte[]>("getPayload");
-        string text = System.Text.Encoding.UTF8.GetString(payLoad);
-        return text;
     }
 }
